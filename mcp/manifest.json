@@ -1,0 +1,90 @@
+{
+  "manifest_version": "0.3",
+  "name": "freetabs",
+  "display_name": "FreeTabs",
+  "version": "0.1.0",
+  "description": "Give your AI access to read and organize your FreeTabs browser tabs",
+  "long_description": "FreeTabs is a free Chrome extension that saves your open tabs into folders. With this extension, Claude can read those folders and organize them when you ask: create folders, add links, and move, copy or trash tabs. It all runs on your computer. Every change goes through FreeTabs, so you can undo it there, and tabs saved from incognito windows never reach Claude.\n\nOpen source, so you can check before you install: ask Claude to review the code at github.com/leofritsch/freetabs.",
+  "author": {
+    "name": "Experiment Empire",
+    "url": "https://experimentempire.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leofritsch/freetabs.git"
+  },
+  "homepage": "https://github.com/leofritsch/freetabs",
+  "documentation": "https://github.com/leofritsch/freetabs/tree/main/mcp#readme",
+  "support": "https://github.com/leofritsch/freetabs/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/index.js"
+      ],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "list_folders",
+      "description": "List your FreeTabs folders with tab counts"
+    },
+    {
+      "name": "get_folder",
+      "description": "Every saved tab in one folder"
+    },
+    {
+      "name": "search_tabs",
+      "description": "Search saved tabs by words in their title or URL"
+    },
+    {
+      "name": "recent_tabs",
+      "description": "The most recently saved tabs"
+    },
+    {
+      "name": "create_folder",
+      "description": "Create a folder"
+    },
+    {
+      "name": "add_links",
+      "description": "Save web links into a folder"
+    },
+    {
+      "name": "move_tabs",
+      "description": "Move saved tabs to another folder"
+    },
+    {
+      "name": "copy_tabs",
+      "description": "Copy saved tabs into another folder"
+    },
+    {
+      "name": "trash_tabs",
+      "description": "Move saved tabs to Trash (kept 30 days)"
+    }
+  ],
+  "tools_generated": false,
+  "keywords": [
+    "tabs",
+    "chrome",
+    "bookmarks",
+    "reading list",
+    "productivity"
+  ],
+  "license": "MIT",
+  "privacy_policies": [
+    "https://github.com/leofritsch/freetabs/blob/main/PRIVACY.md"
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

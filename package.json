@@ -1,0 +1,39 @@
+{
+  "name": "freetabs",
+  "private": true,
+  "version": "0.1.0",
+  "description": "See every tab, sweep them into folders, end with one clean window.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leofritsch/freetabs.git"
+  },
+  "author": "Experiment Empire (https://experimentempire.com)",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "build": "vite build && npm run build:mcpb",
+    "build:mcpb": "node scripts/build-mcpb.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run && node --test mcp/*.test.js",
+    "zip": "npm run build && mkdir -p release && cd dist && zip -qr ../release/freetabs.zip ."
+  },
+  "dependencies": {
+    "@fontsource-variable/host-grotesk": "^5.3.0",
+    "dexie": "^4.4.6",
+    "dexie-react-hooks": "^4.4.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
+    "@types/chrome": "^0.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "fake-indexeddb": "^6.2.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  }
+}

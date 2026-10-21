@@ -1,0 +1,43 @@
+{
+  "name": "freetabs-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Let Claude and other MCP clients read your FreeTabs folders. Read-only; incognito tabs stay hidden.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "chrome",
+    "tabs",
+    "freetabs",
+    "claude"
+  ],
+  "homepage": "https://github.com/leofritsch/freetabs/tree/main/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leofritsch/freetabs.git",
+    "directory": "mcp"
+  },
+  "bugs": "https://github.com/leofritsch/freetabs/issues",
+  "author": "Experiment Empire (https://experimentempire.com)",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "link.js",
+    "vault.js",
+    "write.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
+  },
+  "scripts": {
+    "test": "node --test vault.test.js"
+  }
+}

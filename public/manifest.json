@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "FreeTabs",
+  "short_name": "FreeTabs",
+  "version": "0.1.0",
+  "description": "Save yourself from 50 open tabs. See every tab on one board, lasso them into folders: saved and closed in one move.",
+  "homepage_url": "https://github.com/leofritsch/freetabs",
+  "minimum_chrome_version": "121",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Open FreeTabs",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage",
+    "unlimitedStorage",
+    "bookmarks",
+    "alarms",
+    "contextMenus",
+    "favicon",
+    "scripting"
+  ],
+  "incognito": "spanning",
+  "commands": {
+    "open-board": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open the FreeTabs board"
+    },
+    "save-current-tab": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Save the current tab to Inbox and close it"
+    }
+  },
+  "optional_host_permissions": [
+    "<all_urls>"
+  ]
+}

@@ -1,0 +1,14 @@
+node_modules
+dist
+*.zip
+release/
+.DS_Store
+mcp/node_modules
+.env*
+
+# Private working notes, kept out of the public repo
+.experiment/
+.claude/
+CLAUDE.md
+FreeTabs — Chrome Extension Spec.md
+STORE.md
