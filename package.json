@@ -1,7 +1,7 @@
 {
   "name": "freetabs",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "See every tab, sweep them into folders, end with one clean window.",
   "repository": {
     "type": "git",

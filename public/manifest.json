@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "FreeTabs",
   "short_name": "FreeTabs",
-  "version": "0.1.0",
-  "description": "Save yourself from 50 open tabs. See every tab on one board, lasso them into folders: saved and closed in one move.",
+  "version": "0.1.1",
+  "description": "Free your mind from 50 open tabs. Every tab of every window, in one view. Lasso them, drop them in a folder, they're saved.",
   "homepage_url": "https://github.com/leofritsch/freetabs",
   "minimum_chrome_version": "121",
   "icons": {
