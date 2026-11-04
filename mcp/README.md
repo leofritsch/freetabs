@@ -4,6 +4,8 @@ Let Claude, or any MCP app, read your [FreeTabs](https://github.com/leofritsch/f
 
 ## Set up
 
+You need FreeTabs itself first: [add it to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=mcp-readme).
+
 **Claude Desktop:** [download freetabs.mcpb](https://github.com/leofritsch/freetabs/releases/latest/download/freetabs.mcpb), open it, and click Install. Nothing else to install.
 
 **Claude Code, or any other MCP app:** run it from this repo (Node 18 or newer).

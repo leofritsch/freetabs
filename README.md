@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <a href="#install"><strong>Install FreeTabs</strong></a>
+  <a href="https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=readme"><strong>Add to Chrome, free</strong></a>
 </p>
 
 <br>
@@ -77,22 +77,15 @@ Everything stays in your browser, on your computer. You don't make an account, a
 
 ## Install
 
-<!-- Add the Chrome Web Store link here once the listing is live. -->
+**[Add FreeTabs to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=readme)**. It's free, with no account to make (Chrome 121 or newer).
 
-FreeTabs is on its way to the Chrome Web Store. Until then, you can install it from source in a couple of minutes (Chrome 121 or newer):
+Then click the FreeTabs icon in the toolbar, or press **⌘⇧K** (Ctrl+Shift+K). A short intro shows you the moves the first time it opens.
 
-```sh
-git clone https://github.com/leofritsch/freetabs.git
-cd freetabs
-npm install
-npm run build
-```
+To use it in incognito windows too, open `chrome://extensions`, click FreeTabs' **Details** and turn on **Allow in Incognito**.
 
-1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and choose the `dist` folder.
-3. To use it in incognito windows too, open FreeTabs' **Details** and turn on **Allow in Incognito**.
+Coming from OneTab? Use its **Export URLs**, then paste the text in FreeTabs' Settings › Import.
 
-A short intro shows you the moves the first time it opens.
+Rather run your own build? See [Build it from source](#build-it-change-it-ship-it).
 
 ## Hand the cleanup to your AI
 
@@ -161,6 +154,19 @@ Everything FreeTabs saves stays in your browser, and nothing is sent to us. The 
 | `scripting`, optional `<all_urls>` | Only for the optional typed-text check. Requested when you turn it on, removed when you turn it off |
 
 ## Build it, change it, ship it
+
+The Chrome Web Store version is the `freetabs.zip` that GitHub Actions built for the matching [release](https://github.com/leofritsch/freetabs/releases), file for file. The only differences are the `update_url` Google adds to `manifest.json` and Google's signature in `_metadata/`. To run your own build instead (Chrome 121 or newer):
+
+```sh
+git clone https://github.com/leofritsch/freetabs.git
+cd freetabs
+npm install
+npm run build
+```
+
+Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and choose the `dist` folder. If the Web Store version is installed too, turn it off first, so the two don't share the ⌘⇧K shortcut.
+
+To work on it:
 
 ```sh
 npm install && npm install --prefix mcp
