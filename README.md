@@ -23,10 +23,7 @@
 
 <br>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/board-dark.png">
-  <img alt="The FreeTabs board: every open window side by side, saved folders on the right" src="docs/board-light.png">
-</picture>
+<img alt="Lasso three tabs in a window, drop them on Read later: they're saved and closed, with an Undo" src="docs/demo.gif">
 
 ## It started with 50 tabs and a lagging Mac
 
@@ -46,13 +43,18 @@ Tabs pile up because closing one feels like losing it. FreeTabs saves every tab 
 
 Your windows sit side by side, with full titles. Drag a lasso across the tabs that belong together, across windows if you like, and drop them on a folder. Watch later and Read later are there from the start, and keys 1 to 9 send a selection to your first nine folders.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/board-dark.png">
+  <img alt="The FreeTabs board: every open window side by side, saved folders on the right" src="docs/board-light.png">
+</picture>
+
 ### A saved tab should get used
 
 A folder you never open is a graveyard. FreeTabs puts your saved tabs one search away, sends a folder to Claude or ChatGPT in one click, and lets your AI organize your folders when you ask.
 
 ### Your tabs belong to you
 
-Everything stays in your browser, on your computer. You don't make an account, and nothing is sent to us. Tabs from incognito windows stay hidden from AI every time. The code is open, so you can check all of this yourself.
+Everything stays in your browser, on your computer. You don't make an account, and nothing is sent to us. Tabs from incognito windows stay hidden from AI every time. The code is open, so you can check all of this yourself. Or fork it and make it your own.
 
 <table>
   <tr>
@@ -78,6 +80,8 @@ Everything stays in your browser, on your computer. You don't make an account, a
 ## Install
 
 **[Add FreeTabs to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=readme)**. It's free, with no account to make (Chrome 121 or newer).
+
+When you install it, Chrome says FreeTabs can "Read your browsing history". That's Chrome's wording for seeing the titles and addresses of your open tabs, which FreeTabs needs in order to show them. It never touches your actual history, and nothing it sees leaves your computer. [Every permission, explained](#your-data-stays-on-your-computer).
 
 Then click the FreeTabs icon in the toolbar, or press **⌘⇧K** (Ctrl+Shift+K). A short intro shows you the moves the first time it opens.
 
@@ -143,15 +147,16 @@ When a page asks "Leave site?", FreeTabs saves the tab and leaves it open, flagg
 
 Everything FreeTabs saves stays in your browser, and nothing is sent to us. The one connection it makes is to your own computer (`127.0.0.1`), when an AI app you connected is running. The full policy is in [PRIVACY.md](PRIVACY.md).
 
-| Permission | What it's for |
-| --- | --- |
-| `tabs`, `tabGroups` | Show every tab and group on the board; close, move and reopen them when you ask |
-| `storage`, `unlimitedStorage` | Keep your settings and saved tabs on your computer, with no quota to lose them to |
-| `bookmarks` | Copy your folders to Other bookmarks › FreeTabs as a backup |
-| `alarms` | Run the backup and the 30-day Trash cleanup while the extension sleeps |
-| `contextMenus` | "Save tab to FreeTabs" on the right-click menu |
-| `favicon` | Show site icons from Chrome's own cache, without contacting any site |
-| `scripting`, optional `<all_urls>` | Only for the optional typed-text check. Requested when you turn it on, removed when you turn it off |
+| Permission | What Chrome's install dialog calls it | What FreeTabs uses it for |
+| --- | --- | --- |
+| `tabs` | "Read your browsing history" | Show the title and address of every open tab on the board; close, move and reopen tabs when you ask. FreeTabs never reads your history |
+| `tabGroups` | "View and manage your tab groups" | Show your Chrome tab groups, make new ones, and bring saved groups back with their name and color |
+| `bookmarks` | "Read and change your bookmarks" | Copy your folders to Other bookmarks › FreeTabs as a backup. It only changes its own FreeTabs folder |
+| `favicon` | "Read the icons of the websites you visit" | Show site icons from Chrome's own cache, without contacting any site |
+| `storage`, `unlimitedStorage` | Not shown | Keep your settings and saved tabs on your computer, with no quota to lose them to |
+| `alarms` | Not shown | Run the backup and the 30-day Trash cleanup while the extension sleeps |
+| `contextMenus` | Not shown | "Save tab to FreeTabs" on the right-click menu |
+| `scripting`, optional `<all_urls>` | Nothing at install. "Read and change all your data on all websites" only if you turn on the typed-text check | Check a page for typed text right before closing it. Requested when you turn the check on, removed when you turn it off |
 
 ## Build it, change it, ship it
 
