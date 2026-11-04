@@ -5,20 +5,20 @@
 <h1 align="center">FreeTabs</h1>
 
 <p align="center">
-  <strong>Save yourself from 50 open tabs.</strong>
+  <strong>Free your mind from 50 open tabs</strong>
 </p>
 
 <p align="center">
-  Every tab from every Chrome window on one board.<br>
-  Lasso the ones that belong together, drop them on a folder, and they're saved, checked and closed in one move.
+  Every tab of every window, in one view.<br>
+  Lasso them, drop them in a folder, they're saved. One move.
 </p>
 
 <p align="center">
-  Free forever and open source. Your tabs stay on your computer.
+  🔗 Free forever. Open source. No signup.
 </p>
 
 <p align="center">
-  <a href="https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=readme"><strong>Add to Chrome, free</strong></a>
+  <a href="https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=readme"><strong>Add to Chrome</strong></a>
 </p>
 
 <br>
@@ -199,7 +199,7 @@ To release, set the same version in `package.json`, `public/manifest.json` and `
 
 Issues and pull requests are welcome.
 
-## Made by people with 50 tabs open, too
+## Made by people with 50 tabs open too
 
 FreeTabs is a homage to tabOS, first known as tabExtend, which showed how good a board of tabs can feel.
 
