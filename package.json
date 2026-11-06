@@ -1,7 +1,7 @@
 {
   "name": "freetabs",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "See every tab, sweep them into folders, end with one clean window.",
   "repository": {
     "type": "git",
@@ -16,7 +16,7 @@
     "build:mcpb": "node scripts/build-mcpb.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run && node --test mcp/*.test.js",
-    "zip": "npm run build && mkdir -p release && cd dist && zip -qr ../release/freetabs.zip ."
+    "zip": "npm run build && mkdir -p release && cd dist && zip -qrFS ../release/freetabs.zip . -x '*.DS_Store'"
   },
   "dependencies": {
     "@fontsource-variable/host-grotesk": "^5.3.0",

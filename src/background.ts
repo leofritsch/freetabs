@@ -3,27 +3,50 @@ import { db, INBOX_ID } from './lib/db';
 import { syncBookmarks } from './lib/bookmarks';
 import { beamFrames, INK, type BeamFrame } from './lib/icon';
 import { getSettings } from './lib/settings';
+import { isNewTabUrl } from './lib/url';
 import { ensureSystemFolders, onVaultChange, purgeTrash, saveAndClose } from './lib/vault';
 
 const BOARD_URL = chrome.runtime.getURL('board.html');
 const MENU_ROOT = 'freetabs-save';
-const isBoard = (t: chrome.tabs.Tab) => (t.url || t.pendingUrl || '').startsWith(BOARD_URL);
+const tabUrl = (t: chrome.tabs.Tab) => t.pendingUrl || t.url || '';
+/** Chrome reports a new tab as chrome://newtab/ even when the board is what it shows. Incognito keeps Chrome's default. */
+const isBoard = (t: chrome.tabs.Tab) => tabUrl(t).startsWith(BOARD_URL) || (!t.incognito && tabUrl(t).startsWith('chrome://newtab'));
 
-/** Focus the board if it's already open, otherwise open it next to the current tab. */
+/** Tabs really showing the board, whichever extension's page chrome://newtab/ happens to be. */
+async function boardTabIds() {
+  const pages = await chrome.runtime.getContexts({ contextTypes: ['TAB' as chrome.runtime.ContextType], documentUrls: [BOARD_URL] });
+  return new Set(pages.map((p) => p.tabId));
+}
+
+/**
+ * Go to the board: the one in this window if there is one, otherwise a new tab beside the current one.
+ * With new tabs off there's only ever one board, so it's focused wherever it is. An incognito window can't
+ * hold the board, so it opens in a normal window, and pressing again goes back to that one.
+ */
 async function openBoard() {
+  const { newTab } = await getSettings();
+  const [current] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const ids = await boardTabIds();
   // Match patterns can't express chrome-extension:// URLs, so filter by hand.
-  const existing = (await chrome.tabs.query({})).find(isBoard);
+  const boards = (await chrome.tabs.query({})).filter((t) => ids.has(t.id!));
+  const openHere = !!current && !current.incognito;
+  const existing = boards.find((t) => t.windowId === current?.windowId) ?? (newTab && openHere ? undefined : boards[0]);
   if (existing?.id != null) {
     await chrome.tabs.update(existing.id, { active: true });
     await chrome.windows.update(existing.windowId, { focused: true });
     return;
   }
-  const [current] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (current && !current.incognito) {
-    await chrome.tabs.create({ url: BOARD_URL, windowId: current.windowId, index: current.index + 1 });
-  } else {
-    await chrome.tabs.create({ url: BOARD_URL });
+  if (!openHere) {
+    const tab = await chrome.tabs.create({ url: BOARD_URL });
+    await chrome.windows.update(tab.windowId, { focused: true });
+    return;
   }
+  const tab = await chrome.tabs.create({ url: newTab ? 'chrome://newtab/' : BOARD_URL, windowId: current.windowId, index: current.index + 1 });
+  if (!newTab || tab.id == null) return;
+  // Another extension may hold the new tab page. The button still has to lead to the board.
+  await new Promise((done) => setTimeout(done, 500));
+  const opened = await chrome.tabs.get(tab.id).catch(() => undefined);
+  if (opened && isNewTabUrl(tabUrl(opened)) && !(await boardTabIds()).has(tab.id)) await chrome.tabs.update(tab.id, { url: BOARD_URL });
 }
 
 // ---------- backup: mirror the vault into bookmarks shortly after each change ----------
@@ -64,7 +87,7 @@ async function stopBeam() {
 async function refreshBadge() {
   const settings = await getSettings();
   // Includes incognito tabs once FreeTabs is allowed in incognito.
-  const count = (await chrome.tabs.query({})).filter((t) => !isBoard(t)).length;
+  const count = (await chrome.tabs.query({})).filter((t) => !isBoard(t) && !isNewTabUrl(tabUrl(t))).length;
   const over = settings.tabLimit > 0 && count > settings.tabLimit;
   if (!settings.badge) {
     await stopBeam();
@@ -100,6 +123,10 @@ for (const event of [
 ] as unknown as chrome.events.Event<() => void>[]) {
   event.addListener(scheduleBadge);
 }
+// New tabs don't count, so a new tab that goes somewhere changes the count.
+chrome.tabs.onUpdated.addListener((_id, change) => {
+  if (change.url) scheduleBadge();
+});
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes.settings) return;
   scheduleBadge();
@@ -158,8 +185,7 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   await buildMenus();
   chrome.alarms.create('purge', { periodInMinutes: 360 });
   scheduleBackup();
-  // First install: open the board, where the short intro waits.
-  if (reason === 'install') await openBoard();
+  if (reason === 'install') await chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
 });
 
 chrome.runtime.onStartup.addListener(async () => {

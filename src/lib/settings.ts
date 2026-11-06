@@ -19,7 +19,13 @@ export interface Settings {
   marks: Marks;
   /** let AI apps running freetabs-mcp on this computer read and organize folders */
   aiLink: boolean;
+  /** show the board on every new tab; off hands new tabs back to Chrome's default */
+  newTab: boolean;
+  /** dropping a folder or saved tabs on a window: ask, or always copy or move */
+  folderDrop: FolderDrop;
 }
+
+export type FolderDrop = 'ask' | 'copy' | 'move';
 
 export const DEFAULT_PROMPT =
   'These are tabs I saved in {folder}. Summarize each one in a line, then tell me which 3 matter most and why.';
@@ -34,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
   checkTyped: false,
   marks: DEFAULT_MARKS,
   aiLink: true,
+  newTab: true,
+  folderDrop: 'ask',
 };
 
 export async function getSettings(): Promise<Settings> {

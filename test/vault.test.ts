@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installChrome } from './chrome-mock';
 import { db, INBOX_ID, TRASH_ID, VaultDB } from '../src/lib/db';
+import { isNewTabUrl } from '../src/lib/url';
 import * as vault from '../src/lib/vault';
 
 let chromeMock: ReturnType<typeof installChrome>;
@@ -285,5 +286,103 @@ describe('changes from AI apps', () => {
     const folder = await vault.createFolder('Prospects', 'Claude created Prospects');
     expect((await vault.undo())?.label).toBe('Claude created Prospects');
     expect(await db.folders.get(folder.id)).toBeUndefined();
+  });
+});
+
+describe('new tabs', () => {
+  it('tells Chrome\'s new tab pages from everything else', () => {
+    expect(isNewTabUrl('chrome://newtab/')).toBe(true);
+    expect(isNewTabUrl('chrome://new-tab-page/')).toBe(true);
+    expect(isNewTabUrl('chrome://extensions/')).toBe(false);
+    expect(isNewTabUrl('https://example.com/chrome://newtab/')).toBe(false);
+    expect(isNewTabUrl(undefined)).toBe(false);
+  });
+
+  it('closes an empty new tab with the rest and only names what was saved', async () => {
+    await vault.saveAndClose(chromeMock.open(['chrome://newtab/', 'https://a.com/', 'https://b.com/']), { folderId: INBOX_ID });
+    expect(chromeMock.openUrls()).toEqual([]);
+    expect(await db.tabs.where('folderId').equals(INBOX_ID).count()).toBe(2);
+    expect((await vault.lastUndoable())?.label).toBe('Saved 2 tabs to Inbox');
+  });
+
+  it('says so when all it closed was empty tabs', async () => {
+    await vault.saveAndClose(chromeMock.open(['chrome://newtab/', 'chrome://newtab/']), { folderId: INBOX_ID });
+    expect(await db.tabs.where('folderId').equals(INBOX_ID).count()).toBe(0);
+    expect((await vault.lastUndoable())?.label).toBe('Closed 2 empty tabs');
+  });
+});
+
+describe('bringing a folder back out', () => {
+  const inbox = () => db.tabs.where('folderId').equals(INBOX_ID).primaryKeys();
+
+  it('copy opens the tabs and the folder keeps them', async () => {
+    await vault.saveAndClose(chromeMock.open(['https://a.com/', 'https://b.com/']), { folderId: INBOX_ID });
+    const ids = await inbox();
+    await vault.openSaved(ids, { keep: true });
+    expect(chromeMock.openUrls().sort()).toEqual(['https://a.com/', 'https://b.com/']);
+    expect(await inbox()).toHaveLength(2);
+  });
+
+  it('move opens the tabs and takes them out; undo puts them back and closes what it opened', async () => {
+    await vault.saveAndClose(chromeMock.open(['https://a.com/', 'https://b.com/']), { folderId: INBOX_ID });
+    const ids = await inbox();
+    await vault.openSaved(ids, { keep: false, label: 'Moved 2 tabs out of Inbox' });
+    expect(chromeMock.openUrls().sort()).toEqual(['https://a.com/', 'https://b.com/']);
+    expect(await inbox()).toHaveLength(0);
+    expect(await db.tabs.where('folderId').equals(TRASH_ID).count()).toBe(2);
+
+    const undone = await vault.undo();
+    expect(undone?.label).toBe('Moved 2 tabs out of Inbox');
+    expect(await inbox()).toHaveLength(2);
+    expect(chromeMock.openUrls()).toEqual([]);
+  });
+
+  it('undo leaves a tab alone if you already closed it yourself', async () => {
+    await vault.saveAndClose(chromeMock.open(['https://a.com/', 'https://b.com/']), { folderId: INBOX_ID });
+    await vault.openSaved(await inbox(), { keep: false });
+    const [first] = await chrome.tabs.query({});
+    await chrome.tabs.remove(first.id!);
+    await expect(vault.undo()).resolves.toBeTruthy();
+    expect(await inbox()).toHaveLength(2);
+    expect(chromeMock.openUrls()).toEqual([]);
+  });
+});
+
+describe('never closing what isn\'t saved', () => {
+  const inbox = () => db.tabs.where('folderId').equals(INBOX_ID).primaryKeys();
+
+  it('undo leaves a tab open if you went somewhere else in it', async () => {
+    await vault.saveAndClose(chromeMock.open(['https://a.com/', 'https://b.com/']), { folderId: INBOX_ID });
+    await vault.openSaved(await inbox(), { keep: false });
+    const opened = await chrome.tabs.query({});
+    const moved = opened.find((t) => t.url === 'https://a.com/')!;
+    await chrome.tabs.update(moved.id!, { url: 'https://important-new-page.com/' });
+
+    await vault.undo();
+
+    // a.com is back in the folder, and the page you moved on to is still open.
+    expect(await inbox()).toHaveLength(2);
+    expect(chromeMock.openUrls()).toEqual(['https://important-new-page.com/']);
+  });
+
+  it('undo leaves a tab open if text was typed into it', async () => {
+    chromeMock.grants.origins = true;
+    await chrome.storage.local.set({ settings: { checkTyped: true } });
+    await vault.saveAndClose(chromeMock.open(['https://a.com/']), { folderId: INBOX_ID });
+    await vault.openSaved(await inbox(), { keep: false });
+    const [open] = await chrome.tabs.query({});
+    chromeMock.typed.add(open.id!);
+
+    await vault.undo();
+
+    expect(chromeMock.openUrls()).toEqual(['https://a.com/']);
+  });
+
+  it('saves a new tab that is on its way somewhere, instead of treating it as blank', async () => {
+    const [tab] = chromeMock.open(['chrome://newtab/']);
+    tab.pendingUrl = 'https://slow-site.com/article';
+    await vault.saveAndClose([tab], { folderId: INBOX_ID });
+    const saved = await db.tabs.where('folderId').equals(INBOX_ID).toArray();
+    expect(saved.map((t) => t.url)).toEqual(['https://slow-site.com/article']);
   });
 });

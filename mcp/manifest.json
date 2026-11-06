@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "freetabs",
   "display_name": "FreeTabs",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Give your AI access to read and organize your FreeTabs browser tabs",
   "long_description": "FreeTabs is a free Chrome extension that saves your open tabs into folders. With this extension, Claude can read those folders and organize them when you ask: create folders, add links, and move, copy or trash tabs. It all runs on your computer. Every change goes through FreeTabs, so you can undo it there, and tabs saved from incognito windows never reach Claude.\n\nOpen source, so you can check before you install: ask Claude to review the code at github.com/leofritsch/freetabs.",
   "author": {

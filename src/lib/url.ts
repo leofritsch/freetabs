@@ -41,6 +41,11 @@ export function domainOf(raw: string): string {
   }
 }
 
+/** Chrome's new tab page, or FreeTabs standing in for it (Chrome reports both as chrome://newtab/). */
+export function isNewTabUrl(raw: string | undefined): boolean {
+  return /^chrome:\/\/(newtab|new-tab-page)\b/.test(raw ?? '');
+}
+
 export function isBlankUrl(raw: string | undefined): boolean {
   return BLANK_URLS.has(raw ?? '');
 }

@@ -68,6 +68,8 @@ export interface Inverse {
   moveLive?: { tabId: number; windowId: number; index: number }[];
   moveGroups?: { groupId: number; windowId: number; index: number }[];
   ungroup?: number[];
+  /** live tabs this op opened, and the page each one opened on */
+  closeTabs?: { tabId: number; url: string }[];
 }
 
 export interface Op {

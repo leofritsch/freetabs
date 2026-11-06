@@ -44,7 +44,8 @@ export interface SaveResult {
   stillOpen: number[];
 }
 
-export const liveUrl = (tab: LiveTab) => tab.url || tab.pendingUrl || '';
+/** Where a tab is, or where it's on its way to: a new tab mid-navigation isn't blank. */
+export const liveUrl = (tab: LiveTab) => tab.pendingUrl || tab.url || '';
 
 const isBoardUrl = (url: string) => url.startsWith(chrome.runtime.getURL('board.html'));
 
@@ -171,11 +172,16 @@ export async function saveAndClose(tabs: LiveTab[], target: Target, label?: stri
 
     await db.tabs.bulkPut([...records.values()]);
     await db.snapshots.add(snapshot);
-    const count = live.length;
+    // Empty tabs close too, but they aren't what was saved.
+    const count = saveable.length;
     await db.ops.add({
       id: opId,
       createdAt: now,
-      label: label ?? `${toTrash ? 'Trashed' : 'Saved'} ${count} ${count === 1 ? 'tab' : 'tabs'}${toTrash ? '' : ` to ${folder.name}`}`,
+      label:
+        label ??
+        (count
+          ? `${toTrash ? 'Trashed' : 'Saved'} ${count} ${count === 1 ? 'tab' : 'tabs'}${toTrash ? '' : ` to ${folder.name}`}`
+          : `Closed ${live.length} empty ${live.length === 1 ? 'tab' : 'tabs'}`),
       status: 'closing',
       inverse,
       closeTabIds: live.map((t) => t.id!),
@@ -245,14 +251,14 @@ async function closeTabs(ids: number[], retry = true): Promise<number[]> {
 }
 
 /** Put saved tabs in another folder (or Trash). Duplicates merge into the existing entry. */
-export async function moveSaved(ids: string[], target: Target, label?: string): Promise<{ folder: Folder; moved: number }> {
+export async function moveSaved(ids: string[], target: Target, label?: string, opened?: { tabId: number; url: string }[]): Promise<{ folder: Folder; moved: number }> {
   const now = Date.now();
   const { folder, isNew } = await resolveTarget(target, now);
   const toTrash = folder.id === TRASH_ID;
   let moved = 0;
 
   await db.transaction('rw', [db.folders, db.tabs, db.ops], async () => {
-    const inverse: Inverse = { putTabs: [] };
+    const inverse: Inverse = { putTabs: [], ...(opened?.length ? { closeTabs: opened } : {}) };
     if (isNew) {
       await db.folders.add(folder);
       inverse.removeFolderIds = [folder.id];
@@ -394,24 +400,24 @@ export async function restoreFromTrash(ids: string[]): Promise<number> {
   return tabs.length;
 }
 
-/** Open saved tabs. Without keep, they move to Trash (still restorable for 30 days). */
+/** Open saved tabs. Without keep, they move to Trash (still restorable for 30 days), and undo closes the ones still on that page. */
 export async function openSaved(
   ids: string[],
-  { keep, windowId }: { keep: boolean; windowId?: number },
+  { keep, windowId, label }: { keep: boolean; windowId?: number; label?: string },
 ): Promise<number> {
   const tabs = (await db.tabs.bulkGet(ids)).filter((t): t is SavedTab => !!t);
   if (!tabs.length) return 0;
   let targetWindow: chrome.windows.Window | undefined;
   if (windowId != null) targetWindow = await chrome.windows.get(windowId).catch(() => undefined);
 
-  const opened: { tabId?: number; windowId: number; group?: GroupMeta }[] = [];
+  const opened: { tabId?: number; url: string; windowId: number; group?: GroupMeta }[] = [];
   for (const incognito of [false, true]) {
     const batch = tabs.filter((t) => t.incognito === incognito);
     if (!batch.length) continue;
     if (targetWindow && targetWindow.incognito === incognito) {
       for (const tab of batch) {
         const created = await chrome.tabs.create({ windowId: targetWindow.id, url: tab.url, active: false, pinned: !!tab.pinned });
-        opened.push({ tabId: created.id, windowId: targetWindow.id!, group: tab.group });
+        opened.push({ tabId: created.id, url: tab.url, windowId: targetWindow.id!, group: tab.group });
       }
     } else {
       const win = await chrome.windows.create({ url: batch.map((t) => t.url), incognito, focused: true });
@@ -419,14 +425,15 @@ export async function openSaved(
       await Promise.allSettled(
         batch.map((t, i) => (t.pinned && created[i]?.id != null ? chrome.tabs.update(created[i].id!, { pinned: true }) : null)),
       );
-      batch.forEach((t, i) => opened.push({ tabId: created[i]?.id, windowId: win!.id!, group: t.group }));
+      batch.forEach((t, i) => opened.push({ tabId: created[i]?.id, url: t.url, windowId: win!.id!, group: t.group }));
     }
   }
   await regroup(opened);
 
   if (!keep) {
     const rest = tabs.filter((t) => t.folderId !== TRASH_ID).map((t) => t.id);
-    if (rest.length) await moveSaved(rest, { folderId: TRASH_ID });
+    const live = opened.flatMap((o) => (o.tabId != null ? [{ tabId: o.tabId, url: o.url }] : []));
+    if (rest.length) await moveSaved(rest, { folderId: TRASH_ID }, label, live);
   }
   return tabs.length;
 }
@@ -674,6 +681,20 @@ export async function undo(): Promise<Op | undefined> {
   return op;
 }
 
+/**
+ * Undo puts these pages back in their folder, so a tab still showing one can close: it's saved.
+ * A tab you've since gone somewhere else in stays open, because that page isn't saved anywhere.
+ */
+async function closeUnchanged(opened: { tabId: number; url: string }[]) {
+  const live = new Map((await chrome.tabs.query({})).map((t) => [t.id, t]));
+  const same = opened.flatMap(({ tabId, url }) => {
+    const tab = live.get(tabId);
+    return tab && normalizeUrl(liveUrl(tab)) === normalizeUrl(url) ? [tab] : [];
+  });
+  const typed = await findTypedTabs(same);
+  await closeTabs(same.map((t) => t.id!).filter((id) => !typed.has(id)));
+}
+
 async function revertOp(opId: string, { reopen }: { reopen: boolean }) {
   const op = await db.ops.get(opId);
   if (!op) return;
@@ -686,6 +707,7 @@ async function revertOp(opId: string, { reopen }: { reopen: boolean }) {
     }
   }
   if (reopen && inv.moveLive?.length) await moveBack(inv.moveLive);
+  if (reopen && inv.closeTabs?.length) await closeUnchanged(inv.closeTabs);
   await db.transaction('rw', [db.folders, db.tabs, db.ops], async () => {
     if (inv.removeTabIds?.length) await db.tabs.bulkDelete(inv.removeTabIds);
     if (inv.putTabs?.length) await db.tabs.bulkPut(inv.putTabs);

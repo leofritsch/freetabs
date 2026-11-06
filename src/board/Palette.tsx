@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type R
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, TRASH_ID, type SavedTab } from '../lib/db';
 import type { Mark } from '../lib/marks';
-import { domainOf } from '../lib/url';
+import { domainOf, isNewTabUrl } from '../lib/url';
 import { ago, faviconFor, plural } from './components';
 
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
@@ -78,7 +78,7 @@ export function Palette({
       words.length
         ? windows.flatMap((w) =>
             w.tabs
-              .filter((t) => !(t.url ?? '').startsWith(chrome.runtime.getURL('board.html')) && matchesAll(words, t.title ?? '', t.url ?? ''))
+              .filter((t) => !(t.url ?? '').startsWith(chrome.runtime.getURL('board.html')) && !isNewTabUrl(t.url) && matchesAll(words, t.title ?? '', t.url ?? ''))
               .map((t) => ({ kind: 'live' as const, key: `l${t.id}`, tab: t, where: w.name })),
           )
         : [],
