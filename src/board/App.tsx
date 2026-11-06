@@ -5,19 +5,22 @@ import { db, INBOX_ID, TRASH_ID, type Folder, type Op, type SavedTab } from '../
 import { pendingRestore, restoreFromBookmarks, setAsideOldBackup } from '../lib/bookmarks';
 import * as vault from '../lib/vault';
 import { liveUrl } from '../lib/vault';
-import { suggestFolderName } from '../lib/url';
+import { isBlankUrl, isNewTabUrl, suggestFolderName } from '../lib/url';
 import { aiChatUrl, toAI, toLinks, toMarkdown, type AIProvider, type ExportGroup } from '../lib/export';
-import { DEFAULT_SETTINGS, getSettings, type Settings } from '../lib/settings';
+import { DEFAULT_SETTINGS, getSettings, setSettings, type Settings } from '../lib/settings';
 import { markMatcher } from '../lib/marks';
 import { useLive } from './useLive';
 import {
   ago,
+  agoLong,
   ContextMenu,
   DotsIcon,
+  DropChoice,
   FolderRow,
   faviconFor,
   IncognitoIcon,
   NameInput,
+  placeGhostAt,
   plural,
   Row,
   Toast,
@@ -25,7 +28,6 @@ import {
   type ToastState,
 } from './components';
 import { SettingsDialog } from './Settings';
-import { Onboarding } from './Onboarding';
 import { Palette } from './Palette';
 
 vault.onVaultChange(() => {
@@ -59,29 +61,11 @@ type Gesture =
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/**
- * Follow the pointer, flipping to the other side near the window's edges.
- * The tilt leans the ghost into the direction of travel, like a card held between two fingers.
- */
-function placeGhostAt(el: HTMLElement | null, p: { x: number; y: number }, tilt = { x: 0, y: 0 }) {
-  if (!el) return;
-  let x = p.x + 14;
-  let y = p.y + 10;
-  if (x + el.offsetWidth > window.innerWidth - 8) x = p.x - el.offsetWidth - 14;
-  if (y + el.offsetHeight > window.innerHeight - 8) y = p.y - el.offsetHeight - 10;
-  el.style.transform = `translate3d(${x}px, ${y}px, 0) perspective(700px) rotateY(${tilt.x.toFixed(2)}deg) rotateX(${(-tilt.y).toFixed(2)}deg) rotate(${(tilt.x * 0.2).toFixed(2)}deg)`;
-}
-
 const AI_NAMES: Record<AIProvider, string> = { claude: 'Claude', chatgpt: 'ChatGPT' };
 const TRASH_PROMPT =
   'These are tabs I opened, then threw away. Look for patterns: which sites and topics keep pulling me in and eating my attention? Name my top 3 distractions, how often each shows up here, and one simple rule I could follow to beat each one.';
 const isBoard = (url: string) => url.startsWith(chrome.runtime.getURL('board.html'));
 const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((k) => b.has(k));
-const agoLong = (ms: number) => {
-  const a = ago(ms);
-  return a === 'now' ? 'just now' : /\d[mhd]$/.test(a) ? `${a} ago` : `on ${a}`;
-};
-
 function useSettings(): Settings {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   useEffect(() => {
@@ -194,8 +178,11 @@ export function App() {
   /** the window, tab group or folder held up by a long press (and dimmed while carried) */
   const [lifted, setLifted] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<number | null>(null);
-  const [intro, setIntro] = useState(false);
   const [askIncognito, setAskIncognito] = useState(false);
+  /** first time FreeTabs shows up as a new tab without the welcome page having asked */
+  const [askNewTab, setAskNewTab] = useState(false);
+  /** saved tabs dropped on a window, waiting for "copy or move" */
+  const [choice, setChoice] = useState<{ x: number; y: number; ids: string[]; target: string; windowId?: number; from: string | null } | null>(null);
   useEffect(() => {
     Promise.all([chrome.extension.isAllowedIncognitoAccess(), chrome.storage.local.get('incognitoHintDismissed')]).then(
       ([allowed, { incognitoHintDismissed }]) => setAskIncognito(!allowed && !incognitoHintDismissed),
@@ -203,11 +190,17 @@ export function App() {
     );
   }, []);
   useEffect(() => {
-    chrome.storage.local.get('onboarded').then(({ onboarded }) => setIntro(!onboarded));
+    Promise.all([chrome.storage.local.get('newTabAsked'), chrome.tabs.getCurrent()]).then(
+      ([{ newTabAsked }, tab]) => setAskNewTab(!newTabAsked && isNewTabUrl(tab?.url || tab?.pendingUrl)),
+      () => undefined,
+    );
   }, []);
-  const finishIntro = () => {
-    setIntro(false);
-    chrome.storage.local.set({ onboarded: true });
+  const answerNewTab = async (keep: boolean) => {
+    setAskNewTab(false);
+    await chrome.storage.local.set({ newTabAsked: true });
+    if (keep) return;
+    await setSettings({ newTab: false });
+    if (boardTab?.id != null) await chrome.tabs.update(boardTab.id, { url: 'chrome://new-tab-page/' });
   };
 
   const folderId = view.kind === 'folder' ? view.id : null;
@@ -257,11 +250,14 @@ export function App() {
   }, [view, folders, folderById]);
 
   const allWindows = windows ?? [];
+  /** the tab this board is showing in; other new tabs are just empty tabs on the board */
+  const isHere = useCallback((t: chrome.tabs.Tab) => t.id === boardTab?.id || isBoard(liveUrl(t)), [boardTab?.id]);
   const liveById = useMemo(
     () => new Map(allWindows.flatMap((w) => w.tabs.map((t) => [String(t.id), t] as const))),
     [allWindows],
   );
-  const liveCount = useMemo(() => allWindows.reduce((n, w) => n + w.tabs.filter((t) => !isBoard(liveUrl(t))).length, 0), [allWindows]);
+  const liveCount = useMemo(() => allWindows.reduce((n, w) => n + w.tabs.filter((t) => !isHere(t) && !isNewTabUrl(liveUrl(t))).length, 0), [allWindows, isHere]);
+  const nothingElseOpen = useMemo(() => allWindows.every((w) => w.tabs.every(isHere)), [allWindows, isHere]);
   const savedTotal = [...counts.entries()].reduce((n, [id, c]) => (id === TRASH_ID ? n : n + c), 0);
 
   // This window first, then the ones untouched the longest: the likeliest to clear out.
@@ -275,9 +271,10 @@ export function App() {
       .filter((w) => !order.rank.has(w.id))
       .sort((a, b) => Number(b.id === boardWindowId) - Number(a.id === boardWindowId) || lastUsed(a) - lastUsed(b));
     if (boardWindowId != null) {
-      for (const w of fresh) {
-        order.rank.set(w.id, order.next++);
-        if (w.id !== boardWindowId) order.number.set(w.id, order.number.size + 1);
+      for (const w of fresh) order.rank.set(w.id, order.next++);
+      // Every window but this one gets a number, including one the board's tab has since moved out of.
+      for (const w of [...allWindows].sort((a, b) => order.rank.get(a.id)! - order.rank.get(b.id)!)) {
+        if (w.id !== boardWindowId && !order.number.has(w.id)) order.number.set(w.id, order.number.size + 1);
       }
     }
     const rank = (w: (typeof allWindows)[number]) => order.rank.get(w.id) ?? Infinity;
@@ -294,8 +291,8 @@ export function App() {
   const windowColumns = useStickyColumns(visibleWindows, columnCount);
   const markOf = useMemo(() => markMatcher(settings.marks), [settings.marks]);
   const lassoable = useCallback(
-    (t: chrome.tabs.Tab) => !isBoard(liveUrl(t)) && (settings.lassoPinned || !t.pinned),
-    [settings.lassoPinned],
+    (t: chrome.tabs.Tab) => !isHere(t) && (settings.lassoPinned || !t.pinned),
+    [settings.lassoPinned, isHere],
   );
   const overviewGroups = useMemo(
     () =>
@@ -380,12 +377,16 @@ export function App() {
     setLeaving(new Set(keys));
     try {
       const res = await busy(target === TRASH_ID ? `Closing ${plural(tabs.length, 'tab')}…` : `Saving ${plural(tabs.length, 'tab')}…`, () =>
-        vault.saveAndClose(tabs, target === 'new-folder' ? { newFolderName: newName || suggestFolderName(tabs.map(liveUrl)) } : { folderId: target }),
+        vault.saveAndClose(tabs, target === 'new-folder' ? { newFolderName: newName || suggestFolderName(tabs.map(liveUrl).filter((url) => !isBlankUrl(url))) } : { folderId: target }),
       );
       setSel(EMPTY);
       pulse(res.folder.id);
-      const done =
-        res.folder.id === TRASH_ID ? `Moved ${plural(tabs.length, 'tab')} to Trash` : `Saved ${plural(tabs.length, 'tab')} to ${res.folder.name}`;
+      const real = tabs.filter((t) => !isBlankUrl(liveUrl(t))).length;
+      const done = !real
+        ? `Closed ${plural(tabs.length, 'empty tab')}`
+        : res.folder.id === TRASH_ID
+          ? `Moved ${plural(real, 'tab')} to Trash`
+          : `Saved ${plural(real, 'tab')} to ${res.folder.name}`;
       const stuck = res.stillOpen.map(String);
       if (stuck.length) {
         // Chrome is asking "Leave site?" on these: show them again, flagged, and point at the prompt.
@@ -432,9 +433,36 @@ export function App() {
     }
   };
 
+  /** Copy: open them, the folder keeps them. Move: open them, they leave the folder. */
+  const bringOut = async (mode: 'copy' | 'move', ids: string[], windowId: number | undefined, from: string | null) => {
+    const label = from ? `Moved ${plural(ids.length, 'tab')} out of ${from}` : `Moved ${plural(ids.length, 'tab')} out of their folder`;
+    try {
+      const n = await busy(`Opening ${plural(ids.length, 'tab')}…`, () => vault.openSaved(ids, { keep: mode === 'copy', windowId, label }));
+      setSel(EMPTY);
+      if (mode === 'copy') say(`Opened ${plural(n, 'tab')}. ${from ?? 'Their folder'} still has ${n === 1 ? 'it' : 'them'}.`);
+      else say(label, { action: undoAction });
+    } catch (error) {
+      fail(error);
+    }
+  };
+
+  /** Saved tabs from a folder landed on a window or on empty space. */
+  const dropSaved = (ids: string[], target: string, from: string | null) => {
+    const windowId = target.startsWith('window:') ? Number(target.slice(7)) : undefined;
+    if (settings.folderDrop !== 'ask') return bringOut(settings.folderDrop, ids, windowId, from);
+    setOver(target);
+    setChoice({ ...pointer.current, ids, target, windowId, from });
+  };
+
   const performDrop = async (target: string, source: Source, keys: string[]) => {
+    if (source === 'saved' && (target === 'new-window' || target.startsWith('window:'))) {
+      const homes = new Set(keys.map((k) => savedById.get(k)?.folderId));
+      const home = homes.size === 1 ? folderById.get([...homes][0] ?? '') : undefined;
+      // Trash isn't somewhere to keep things, so there's nothing to ask: they open, and stay in Trash until it clears.
+      if (home?.id === TRASH_ID) return openSaved(keys, true, target.startsWith('window:') ? Number(target.slice(7)) : undefined);
+      return dropSaved(keys, target, home?.name ?? null);
+    }
     if (target === 'new-window') {
-      if (source === 'saved') return openSaved(keys, false);
       const tabs = keys.map((k) => liveById.get(k)).filter((t): t is chrome.tabs.Tab => !!t);
       try {
         const n = await busy('Making a new window…', () => vault.moveToNewWindow(tabs));
@@ -472,7 +500,6 @@ export function App() {
       }
       return saveLive(tabs, folder);
     }
-    if (windowId != null) return openSaved(keys, false, windowId);
     return moveSavedTo(keys, folder);
   };
 
@@ -480,7 +507,7 @@ export function App() {
   const tabsOfGroup = (group: string): chrome.tabs.Tab[] => {
     const [kind, raw] = group.split(':');
     const id = Number(raw);
-    const all = allWindows.flatMap((w) => w.tabs).filter((t) => !isBoard(liveUrl(t)));
+    const all = allWindows.flatMap((w) => w.tabs).filter((t) => !isHere(t));
     if (kind === 'window') return all.filter((t) => t.windowId === id);
     if (kind === 'tgroup') return all.filter((t) => t.groupId === id);
     return [];
@@ -499,7 +526,7 @@ export function App() {
       if (target === 'new-window' || target.startsWith('window:')) {
         // A folder dropped on the board comes back out as tabs: in that window, or a new one.
         const ids = await db.tabs.where('folderId').equals(group.slice(7)).primaryKeys();
-        if (ids.length) await openSaved(ids, false, target.startsWith('window:') ? Number(target.slice(7)) : undefined);
+        if (ids.length) await dropSaved(ids, target, groupName(group));
         return;
       }
       if (!target.startsWith('folder:')) return;
@@ -678,7 +705,7 @@ export function App() {
   };
 
   const windowMenu = (w: { tabs: chrome.tabs.Tab[] }, name: string, x: number, y: number) => {
-    const own = w.tabs.filter((t) => !isBoard(liveUrl(t)));
+    const own = w.tabs.filter((t) => !isHere(t));
     const n = own.length;
     const now = Date.now();
     const groups = [{ name, tabs: own.map((t) => ({ url: liveUrl(t), title: t.title ?? '', incognito: !!t.incognito, savedAt: now })) }];
@@ -773,7 +800,7 @@ export function App() {
   const listOf = (key: string, source: Source): string[] => {
     if (source === 'live') {
       const w = visibleWindows.find((w) => w.tabs.some((t) => String(t.id) === key));
-      return w ? w.tabs.filter((t) => !isBoard(liveUrl(t))).map((t) => String(t.id)) : [key];
+      return w ? w.tabs.filter((t) => !isHere(t)).map((t) => String(t.id)) : [key];
     }
     if (view.kind === 'folder') return folderTabs.map((t) => t.id);
     const group = overviewGroups.find((g) => g.tabs.some((t) => t.id === key));
@@ -1110,7 +1137,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, dialog, .palette')) return;
+      if (t.closest('input, textarea, dialog, .palette, .choice')) return;
       const a = api.current;
       const mod = e.metaKey || e.ctrlKey;
       if ((e.key === '/' || (e.key === 'Enter' && !a.sel.keys.size)) && !mod && !e.shiftKey) {
@@ -1236,7 +1263,7 @@ export function App() {
     if (drag.group) {
       if (!over) return '';
       if (over === 'new-window') return drag.group.startsWith('folder:') ? 'Open everything in a new window' : 'Move to a new window';
-      if (drag.group.startsWith('folder:') && over.startsWith('window:')) return 'Open everything in this window';
+      if (drag.group.startsWith('folder:') && over.startsWith('window:')) return 'Bring everything to this window';
       const name = over.startsWith('folder:') ? (folderById.get(over.slice(7))?.name ?? 'folder') : '';
       if (drag.group.startsWith('folder:')) return over === `folder:${TRASH_ID}` ? 'Delete folder (tabs go to Trash)' : `Move everything into ${name}`;
       if (over === 'new-folder') return 'Save all to a new folder';
@@ -1287,7 +1314,7 @@ export function App() {
   };
 
   const renderLiveRow = (t: chrome.tabs.Tab, windowId: number) =>
-    isBoard(liveUrl(t)) ? (
+    isHere(t) ? (
       <div className="row row--here" key={t.id}>
         <span className="fav fav--here" aria-hidden="true" />
         <span className="row__title">FreeTabs</span>
@@ -1299,7 +1326,7 @@ export function App() {
         rowKey={String(t.id)}
         source="live"
         url={liveUrl(t)}
-        title={t.title ?? ''}
+        title={isNewTabUrl(liveUrl(t)) ? 'New tab' : t.title ?? ''}
         selected={!!liveSel?.has(String(t.id))}
         lassoable={lassoable(t)}
         windowId={windowId}
@@ -1439,7 +1466,18 @@ export function App() {
       <div className="body">
         <main className="main" ref={scrollRef} data-lasso-zone data-drop="new-window" data-over={over === 'new-window' || undefined}>
           {restoreBanner}
-          {askIncognito && !intro && view.kind === 'live' && (
+          {askNewTab && (
+            <div className="banner banner--quiet" role="status">
+              <span>FreeTabs is your new tab page now. If Chrome asks about it, choose Keep it: Change it back turns FreeTabs off. Prefer Chrome’s default new tab? Switch here instead.</span>
+              <button className="textbtn" onClick={() => answerNewTab(true)}>
+                Keep FreeTabs
+              </button>
+              <button className="textbtn" onClick={() => answerNewTab(false)}>
+                Use Chrome’s default new tab
+              </button>
+            </div>
+          )}
+          {askIncognito && !askNewTab && view.kind === 'live' && (
             <div className="banner banner--quiet" role="status">
               <IncognitoIcon title="Incognito" />
               <span>Incognito windows aren’t on the board. Allow FreeTabs in incognito to see, count and save them too.</span>
@@ -1473,7 +1511,7 @@ export function App() {
 
           {view.kind === 'live' ? (
             <>
-              {windows && liveCount === 0 ? (
+              {windows && nothingElseOpen ? (
                 <div className="clean">
                   <p className="clean__title">One clean window.</p>
                   <p className="clean__sub">
@@ -1485,7 +1523,7 @@ export function App() {
                   {windowColumns.map((col, ci) => (
                   <div className="wincol" key={ci}>
                   {col.map((w) => {
-                    const own = w.tabs.filter((t) => !isBoard(liveUrl(t)));
+                    const own = w.tabs.filter((t) => !isHere(t));
                     const here = w.id === boardWindowId;
                     const name = windowName(w);
                     return (
@@ -1727,8 +1765,27 @@ export function App() {
       )}
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
       <Toast toast={toast} onDone={closeToast} />
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} say={say} onShowIntro={() => { setSettingsOpen(false); setIntro(true); }} />
-      {intro && <Onboarding onDone={finishIntro} />}
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} say={say} />
+      {choice && (
+        <DropChoice
+          x={choice.x}
+          y={choice.y}
+          heading={`Open ${plural(choice.ids.length, 'tab')} in ${choice.target === 'new-window' ? 'a new window' : groupName(`window:${choice.windowId}`)}`}
+          keeps={`${choice.from ?? 'Their folder'} keeps ${choice.ids.length === 1 ? 'it' : 'them'} too.`}
+          leaves={`${choice.ids.length === 1 ? 'It leaves' : 'They leave'} ${choice.from ?? 'their folder'}.`}
+          onCancel={() => {
+            setChoice(null);
+            setOver(null);
+          }}
+          onChoose={(mode, remember) => {
+            const { ids, windowId, from } = choice;
+            setChoice(null);
+            setOver(null);
+            if (remember) void setSettings({ folderDrop: mode });
+            void bringOut(mode, ids, windowId, from);
+          }}
+        />
+      )}
       <Palette
         open={paletteOpen}
         trigger={searchRef.current}

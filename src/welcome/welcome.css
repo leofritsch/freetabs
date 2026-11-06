@@ -1,0 +1,143 @@
+/* The welcome page: the board's own parts, composed for a first look. */
+body[data-page='welcome'] { overflow: auto; }
+
+.wel {
+  touch-action: pan-y;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 3.4vw, 48px);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.wel__top { display: flex; align-items: center; gap: 10px; height: 64px; }
+.wel__mark { border-radius: 6px; }
+.wel__top .brand { margin-right: 0; }
+.wel__dots { display: flex; gap: 7px; margin-left: auto; margin-right: 8px; }
+.wel__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rule); transition: background-color 200ms ease, transform 200ms var(--ease-out); }
+.wel__dot[aria-current] { background: var(--ink); transform: scale(1.2); }
+@media (hover: hover) { .wel__dot:not([aria-current]):hover { background: var(--graphite); } }
+.wel__skip { color: var(--graphite); }
+
+/* backwards, not both: a transform still in effect would become the origin for the lasso, ghost and toast inside it */
+.wel__main { display: grid; align-content: start; min-width: 0; padding-top: clamp(4px, 2vh, 22px); animation: settle 320ms var(--ease-out) backwards; }
+.wel__title {
+  margin: 0;
+  font-size: clamp(36px, 5.55vw, 78px);
+  line-height: 1.02;
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  text-wrap: balance;
+}
+.wel__hint {
+  margin: 12px 0 0;
+  max-width: 62ch;
+  min-height: 1.4em;
+  font-size: clamp(17px, 1.65vw, 21px);
+  line-height: 1.35;
+  letter-spacing: -0.012em;
+  color: var(--graphite);
+}
+.wel__note { margin: 18px 0 0; max-width: 96ch; font-size: 14px; line-height: 1.5; color: var(--graphite); text-wrap: pretty; }
+.wel__note kbd { padding: 1px 6px; border: 1px solid var(--rule); border-radius: 5px; font-size: 12.5px; color: var(--ink); }
+
+.wel__foot { display: flex; align-items: center; gap: 6px; min-height: 76px; }
+.wel__aside { flex: 1; min-width: 0; margin: 0; padding-right: 12px; font-size: 13.5px; color: var(--graphite); animation: settle 320ms var(--ease-out) backwards; }
+.wel__main[data-leaving], .wel__aside[data-leaving] { opacity: 0; transition: opacity 220ms ease; }
+.wel__aside a, .opt__help a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule); transition: text-decoration-color 160ms ease; }
+@media (hover: hover) { .wel__aside a:hover, .opt__help a:hover { text-decoration-color: currentColor; } }
+.wel__next { height: 44px; padding: 0 24px; border-radius: 10px; font-size: 15px; }
+
+/* ---------- the practice board ---------- */
+.demo { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 23vw, 300px); gap: clamp(16px, 2.4vw, 32px); margin-top: clamp(16px, 2.6vh, 28px); }
+.demo__board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 14px; align-items: start; min-height: 390px; }
+.demo__board .win { margin-bottom: 0; }
+.demo__board .row { padding-top: 4px; padding-bottom: 5px; }
+/* in the footer's empty middle, where the toast appears too, so it never sits on a tab */
+.demo .chip { left: calc(50% - 46px); bottom: 22px; }
+.demo__vaulthead { padding: 0 2px 6px; cursor: default; }
+@media (hover: hover) { .demo__vaulthead:hover { background: none; } }
+.demo__vault .folder { cursor: default; }
+.demo__vault .folder__peek { min-height: 16px; }
+
+.demo__fav { color: #fff; background: var(--tint, var(--graphite)); }
+.demo__fav[data-tint='sage'] { --tint: var(--c-sage); }
+.demo__fav[data-tint='ochre'] { --tint: var(--c-ochre); }
+.demo__fav[data-tint='slate'] { --tint: var(--c-slate); }
+.demo__fav[data-tint='plum'] { --tint: var(--c-plum); }
+.demo__fav[data-tint='teal'] { --tint: var(--c-teal); }
+.demo__fav[data-tint='ink'] { --tint: var(--ink); color: var(--paper); }
+.row[aria-selected='true'] .demo__fav { background: color-mix(in srgb, var(--paper) 22%, transparent); color: var(--paper); }
+.folder__fav.demo__fav { display: grid; place-items: center; font-size: 10px; font-weight: 600; margin: 0; }
+
+.demo__hand {
+  position: fixed;
+  top: -2px;
+  left: -4px;
+  z-index: 120;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  filter: drop-shadow(0 2px 3px rgb(42 37 32 / 0.28));
+}
+.demo__hand svg { display: block; transition: transform 140ms var(--ease-out); transform-origin: 20% 12%; }
+.demo__hand[data-state='up'], .demo__hand[data-state='down'] { opacity: 1; }
+.demo__hand[data-state='down'] svg { transform: scale(0.86); }
+
+/* ---------- what a new tab shows ---------- */
+.picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2.4vw, 32px); max-width: 1100px; margin-top: clamp(16px, 2.8vh, 30px); }
+.pick { display: grid; gap: 4px; text-align: left; outline: 0; }
+.mini {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  opacity: 0.55;
+  transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out);
+}
+.pick[aria-checked='true'] .mini { opacity: 1; box-shadow: 0 0 0 1px var(--ink), var(--shadow-lift); transform: translateY(-2px); }
+@media (hover: hover) { .pick[aria-checked='false']:hover .mini { opacity: 0.85; } }
+.pick:active .mini { transform: scale(0.992); }
+.pick:focus-visible .mini { outline: 1.5px solid var(--ink); outline-offset: 3px; }
+.mini__frame { fill: var(--paper); stroke: var(--rule); stroke-width: 1.5; }
+.pick[aria-checked='true'] .mini__frame { stroke: var(--ink); }
+.mini__rule { fill: none; stroke: var(--rule); stroke-width: 1; }
+.mini__tab { fill: var(--wash); stroke: var(--rule); stroke-width: 1; }
+.mini__tabtext { font: 500 12px var(--font); fill: var(--ink); }
+.mini__wash { fill: var(--wash-strong); }
+.mini__soft { fill: var(--graphite); opacity: 0.38; }
+.mini__line { fill: none; stroke: var(--rule); stroke-width: 1.2; }
+.mini__ink { fill: var(--ink); }
+.mini__paper { fill: var(--paper); opacity: 0.88; }
+.pick__label { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.pick__dot { flex: none; width: 16px; height: 16px; border: 1.5px solid var(--rule); border-radius: 50%; transition: border 200ms var(--ease-out); }
+.pick[aria-checked='true'] .pick__dot { border: 5px solid var(--ink); }
+.pick__name { font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
+.pick__help { padding-left: 26px; font-size: 14px; line-height: 1.4; color: var(--graphite); }
+
+/* ---------- the optional extras ---------- */
+.opts { max-width: 820px; margin-top: clamp(20px, 4vh, 44px); border-bottom: 1px solid var(--rule); }
+.opt { display: flex; align-items: center; gap: 24px; min-height: 84px; padding: 14px 0; border-top: 1px solid var(--rule); }
+.opt__text { flex: 1; display: grid; gap: 3px; min-width: 0; }
+.opt__name { font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
+.opt__help { font-size: 14px; line-height: 1.42; color: var(--graphite); max-width: 56ch; }
+.opt__btn { flex: none; border: 1px solid var(--rule); height: 36px; padding: 0 14px; border-radius: 8px; text-decoration: none; }
+.opt__idle { flex: none; font-size: 14px; color: var(--graphite); }
+.opt__done { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; }
+
+@media (max-width: 900px) {
+  .demo { grid-template-columns: 1fr; }
+  .demo__board { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; gap: 12px; }
+  .demo__vault .folders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .picks { grid-template-columns: 1fr; max-width: 560px; }
+  .wel__aside { display: none; }
+  .wel__foot { justify-content: flex-end; }
+}
+@media (max-width: 560px) {
+  .demo__board { grid-template-columns: 1fr; }
+  .opt { flex-direction: column; align-items: flex-start; gap: 10px; }
+}

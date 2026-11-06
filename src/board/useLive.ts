@@ -33,11 +33,14 @@ export function useLive() {
       setGroups(new Map(tabGroups.map((g) => [g.id, g])));
       setWindows(all.map((w) => ({ id: w.id!, incognito: w.incognito, tabs: w.tabs ?? [] })));
     };
+    // A board can sit in any number of background tabs now; only the one you're looking at keeps up.
     const refresh = () => {
+      if (document.hidden) return;
       clearTimeout(timer);
       timer = setTimeout(load, 40);
     };
     const patch = (tabId: number, change: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => {
+      if (document.hidden) return;
       if ('pinned' in change || 'groupId' in change) return refresh();
       setWindows((ws) =>
         ws?.map((w) => (w.id === tab.windowId ? { ...w, tabs: w.tabs.map((t) => (t.id === tabId ? tab : t)) } : w)) ?? ws,

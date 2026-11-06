@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { db, TRASH_ID } from '../lib/db';
 import { toBookmarksHtml } from '../lib/export';
 import { buildMirror, importText } from '../lib/mirror';
-import { DEFAULT_PROMPT, DEFAULT_SETTINGS, getSettings, setSettings, type BackupStatus, type Settings } from '../lib/settings';
+import { DEFAULT_PROMPT, DEFAULT_SETTINGS, getSettings, setSettings, type BackupStatus, type FolderDrop, type Settings } from '../lib/settings';
 import { hasTypedPermission, TYPED_ORIGINS } from '../lib/typed';
 import { cleanSite, type Mark, type SiteList } from '../lib/marks';
 import { aiLinkWanted, MCP_SETUP_URL, MCPB_URL, type AiLinkStatus } from '../lib/ailink';
-import { ago, plural } from './components';
+import { agoLong, plural } from './components';
 import type { ToastState } from './components';
 
 function download(name: string, text: string, type: string) {
@@ -75,12 +75,10 @@ export function SettingsDialog({
   open,
   onClose,
   say,
-  onShowIntro,
 }: {
   open: boolean;
   onClose: () => void;
   say: (message: string, extra?: Partial<ToastState>) => void;
-  onShowIntro: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [s, setS] = useState<Settings>(DEFAULT_SETTINGS);
@@ -183,9 +181,6 @@ export function SettingsDialog({
         </header>
 
         <section className="studio" aria-label="Experiment Empire">
-          <a className="studio__mark" href={STUDIO_URL} target="_blank" rel="noopener" aria-label="Experiment Empire">
-            EE
-          </a>
           <h3 className="studio__title">Made by people with 50 tabs open, too.</h3>
           <p className="studio__body">
             FreeTabs is free forever &amp; open source. It’s one of 30+ small apps, built for busy minds. If it helped, you’ll like the rest!
@@ -197,6 +192,40 @@ export function SettingsDialog({
             <a className="studio__link" href={SOURCE_URL} target="_blank" rel="noopener">
               Source code
             </a>
+            <a className="studio__mark" href={STUDIO_URL} target="_blank" rel="noopener" aria-label="Experiment Empire">
+              EE
+            </a>
+          </div>
+        </section>
+
+        <section className="settings__section">
+          <h3>New tab</h3>
+          <Toggle
+            label="Show FreeTabs on every new tab"
+            help="Off: you get Chrome’s default new tab, and the toolbar icon or ⌘⇧K opens your board. Incognito windows always keep Chrome’s default."
+            checked={s.newTab}
+            onChange={(v) => {
+              void chrome.storage.local.set({ newTabAsked: true });
+              void update({ newTab: v });
+            }}
+          />
+        </section>
+
+        <section className="settings__section">
+          <h3>Dragging a folder onto a window</h3>
+          <p className="settings__note">Copy opens the tabs and the folder keeps them. Move opens the tabs and takes them out of the folder.</p>
+          <div className="seg" role="radiogroup" aria-label="Dragging a folder onto a window">
+            {(
+              [
+                ['ask', 'Ask every time'],
+                ['copy', 'Always copy'],
+                ['move', 'Always move'],
+              ] as [FolderDrop, string][]
+            ).map(([value, label]) => (
+              <button key={value} className="seg__opt" role="radio" aria-checked={s.folderDrop === value} onClick={() => update({ folderDrop: value })}>
+                {label}
+              </button>
+            ))}
           </div>
         </section>
 
@@ -273,7 +302,7 @@ export function SettingsDialog({
             <span className="settings__status">
               {status
                 ? status.ok
-                  ? `Last backup ${ago(status.at) === 'now' ? 'just now' : `${ago(status.at)} ago`}, ${plural(status.tabs ?? 0, 'tab')}.`
+                  ? `Last backup ${agoLong(status.at)}, ${plural(status.tabs ?? 0, 'tab')}.`
                   : `Last backup failed: ${status.error}`
                 : 'No backup yet.'}
             </span>
@@ -405,12 +434,16 @@ export function SettingsDialog({
 
         <section className="settings__section settings__about">
           <p>
-            FreeTabs is free and open source (MIT). No account, no server: your tabs stay on this computer. It’s a homage to tabOS, first
+            FreeTabs is free and{' '}
+            <a href={SOURCE_URL} target="_blank" rel="noopener">
+              open source (MIT)
+            </a>
+            . No account, no server: your tabs stay on this computer. It’s a homage to tabOS, first
             known as tabExtend, which showed how good a board of tabs can feel.
           </p>
           <div className="settings__row settings__row--start">
-            <button className="textbtn" onClick={onShowIntro}>
-              Show the intro again
+            <button className="textbtn" onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') })}>
+              Show the welcome page
             </button>
           </div>
           <p className="settings__version">Version {chrome.runtime.getManifest().version}</p>

@@ -23,7 +23,7 @@
 
 <br>
 
-<img alt="Lasso three tabs in a window, drop them on Read later: they're saved and closed, with an Undo" src="docs/demo.gif">
+<img alt="Lasso tabs across three windows, drop them on Read later: they're saved and closed, with an Undo" src="docs/freetabs-demo.gif">
 
 ## It started with 50 tabs and a lagging Mac
 
@@ -81,9 +81,11 @@ Everything stays in your browser, on your computer. You don't make an account, a
 
 **[Add FreeTabs to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/freetabs/jjjahliekhnclnompamhdpojnpahidai?utm_source=github&utm_medium=readme)**. It's free, with no account to make (Chrome 121 or newer).
 
-When you install it, Chrome says FreeTabs can "Read your browsing history". That's Chrome's wording for seeing the titles and addresses of your open tabs, which FreeTabs needs in order to show them. It never touches your actual history, and nothing it sees leaves your computer. [Every permission, explained](#your-data-stays-on-your-computer).
+When you install it, Chrome says FreeTabs can "Read your browsing history". That's Chrome's wording for seeing the titles and addresses of your open tabs, which FreeTabs needs in order to show them. It never touches your actual history, and nothing it sees leaves your computer. Chrome also says it can "Replace the page you see when opening a new tab", which is how your board gets there. [Every permission, explained](#your-data-stays-on-your-computer).
 
-Then click the FreeTabs icon in the toolbar, or press **⌘⇧K** (Ctrl+Shift+K). A short intro shows you the moves the first time it opens.
+A welcome page opens, with a practice board to try the moves on. After that, FreeTabs is on every new tab. Prefer Chrome's default new tab? It's one switch, on the welcome page or in Settings, and the toolbar icon or **⌘⇧K** (Ctrl+Shift+K) still opens your board.
+
+The first time you open a new tab, Chrome asks "Did you mean to change this page?". Choose **Keep it**, because **Change it back** turns FreeTabs off.
 
 To use it in incognito windows too, open `chrome://extensions`, click FreeTabs' **Details** and turn on **Allow in Incognito**.
 
@@ -121,13 +123,13 @@ Your AI can read and search your folders, create folders, add links, and move, c
 
 | To | Do this |
 | --- | --- |
-| **Open the board** | Click the toolbar icon, or press **⌘⇧K** (Ctrl+Shift+K) |
+| **Open the board** | Open a new tab. Or click the toolbar icon, or press **⌘⇧K** (Ctrl+Shift+K) |
 | **Select** | Click, **⌘-click** to add, **⇧-click** for a range, or drag a lasso across empty space |
 | **Save and close** | Drop the selection on a folder or **New folder**, or press **1–9**, or **N** for a new folder |
 | **Save a whole window** | Hold its name to pick it up, then drop it on a folder |
 | **Tab groups** | Select tabs and press **G** for a Chrome tab group. Saved groups come back with their name and color |
 | **Search** | Press **Enter** or **/**. **↵** jumps to a tab, **⇧↵** selects every match |
-| **Bring a folder back** | Drag it onto a window, or onto empty space for a new window |
+| **Bring a folder back** | Drag it onto a window, or onto empty space for a new window. FreeTabs asks: **Copy** opens the tabs and the folder keeps them, **Move** opens them and takes them out. Settings can make either one the default |
 | **Reorganize** | Drag tabs to another window, or onto empty space to tear them off |
 | **Throw away** | Drag to **Trash**, or press **Delete**. Trash keeps tabs for 30 days |
 | **Undo** | **⌘Z**, or Undo in the toast. Tabs reopen where they were |
@@ -149,6 +151,7 @@ Everything FreeTabs saves stays in your browser, and nothing is sent to us. The 
 
 | Permission | What Chrome's install dialog calls it | What FreeTabs uses it for |
 | --- | --- | --- |
+| New tab page | "Replace the page you see when opening a new tab" | Show your board on every new tab. Turn it off in Settings and you get Chrome's default new tab again. Incognito windows always keep Chrome's default |
 | `tabs` | "Read your browsing history" | Show the title and address of every open tab on the board; close, move and reopen tabs when you ask. FreeTabs never reads your history |
 | `tabGroups` | "View and manage your tab groups" | Show your Chrome tab groups, make new ones, and bring saved groups back with their name and color |
 | `bookmarks` | "Read and change your bookmarks" | Copy your folders to Other bookmarks › FreeTabs as a backup. It only changes its own FreeTabs folder |
@@ -185,6 +188,7 @@ npm run zip        # also release/freetabs.zip for the Chrome Web Store
 ```
 src/background.ts   service worker: toolbar count, shortcuts, backups, the AI link
 src/board/          the board (React)
+src/welcome/        the welcome page and its practice board
 src/lib/vault.ts    save, verify, close, undo
 src/lib/ailink.ts   what an AI app can ask FreeTabs for
 src/lib/            bookmarks backup, exports, site lists, tab groups

@@ -1,7 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Folder } from '../lib/db';
 import { GROUP_COLORS } from '../lib/groups';
-import { domainOf, isSystemUrl } from '../lib/url';
+import { domainOf, isNewTabUrl, isSystemUrl } from '../lib/url';
 
 export const FOLDER_COLORS = ['ink', 'sage', 'ochre', 'slate', 'plum', 'teal'] as const;
 
@@ -14,6 +14,12 @@ export function ago(ms: number, now = Date.now()): string {
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   if (s < 86400 * 7) return `${Math.floor(s / 86400)}d`;
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/** For a sentence: "just now", "3d ago", "on Oct 20". */
+export function agoLong(ms: number): string {
+  const a = ago(ms);
+  return a === 'now' ? 'just now' : /\d[mhd]$/.test(a) ? `${a} ago` : `on ${a}`;
 }
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -46,6 +52,19 @@ function Favicon({ url }: { url: string }) {
   const [failed, setFailed] = useState(false);
   if (failed || !url) return <span className="fav fav--letter">{(domainOf(url)[0] ?? '·').toUpperCase()}</span>;
   return <img className="fav" src={faviconFor(url)} width={16} height={16} alt="" decoding="async" onError={() => setFailed(true)} />;
+}
+
+/**
+ * Follow the pointer, flipping to the other side near the window's edges.
+ * The tilt leans the ghost into the direction of travel, like a card held between two fingers.
+ */
+export function placeGhostAt(el: HTMLElement | null, p: { x: number; y: number }, tilt = { x: 0, y: 0 }) {
+  if (!el) return;
+  let x = p.x + 14;
+  let y = p.y + 10;
+  if (x + el.offsetWidth > window.innerWidth - 8) x = p.x - el.offsetWidth - 14;
+  if (y + el.offsetHeight > window.innerHeight - 8) y = p.y - el.offsetHeight - 10;
+  el.style.transform = `translate3d(${x}px, ${y}px, 0) perspective(700px) rotateY(${tilt.x.toFixed(2)}deg) rotateX(${(-tilt.y).toFixed(2)}deg) rotate(${(tilt.x * 0.2).toFixed(2)}deg)`;
 }
 
 export interface RowProps {
@@ -90,10 +109,10 @@ export const Row = memo(function Row(p: RowProps) {
       <Favicon url={p.url} />
       <span className="row__title">{p.title || p.url}</span>
       <span className="row__meta">
-        <span className="row__domain">{domain}</span>
+        {!isNewTabUrl(p.url) && <span className="row__domain">{domain}</span>}
         {p.pinned && <span className="tag">Pinned</span>}
         {p.audible && <span className="tag">Playing sound</span>}
-        {isSystemUrl(p.url) && <span className="tag">Browser page</span>}
+        {isSystemUrl(p.url) && !isNewTabUrl(p.url) && <span className="tag">Browser page</span>}
         {p.unsaved && <span className="tag tag--warn">Unsaved changes</span>}
         {p.incognito && <IncognitoIcon title="From an incognito window. Hidden from AI." />}
         {p.meta && <span className="row__when">{p.meta}</span>}
@@ -157,7 +176,7 @@ export function FolderRow({
             ))}
             {count > shown.length && shown.length > 0 && <span className="folder__more">+{count - shown.length}</span>}
             {count ? (
-              <span className="folder__when">saved {ago(folder.updatedAt) === 'now' ? 'just now' : `${ago(folder.updatedAt)} ago`}</span>
+              <span className="folder__when">saved {agoLong(folder.updatedAt)}</span>
             ) : (
               <span className="folder__when folder__when--empty">Drop tabs here</span>
             )}
@@ -304,6 +323,105 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Saved tabs just landed on a window: should the folder keep them too?
+ * Opens where they were dropped. C or M chooses, Escape or a click elsewhere backs out.
+ */
+export function DropChoice({
+  x,
+  y,
+  heading,
+  keeps,
+  leaves,
+  onChoose,
+  onCancel,
+}: {
+  x: number;
+  y: number;
+  heading: string;
+  keeps: string;
+  leaves: string;
+  onChoose: (mode: 'copy' | 'move', remember: boolean) => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+  const [remember, setRemember] = useState(false);
+  const latest = useRef({ remember, onChoose, onCancel });
+  latest.current = { remember, onChoose, onCancel };
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setPos({
+      x: Math.max(8, Math.min(x, window.innerWidth - el.offsetWidth - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - el.offsetHeight - 8)),
+    });
+    el.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+  }, [x, y]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key !== 'escape' && key !== 'c' && key !== 'm' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const { remember, onChoose, onCancel } = latest.current;
+      if (key === 'escape') onCancel();
+      else if (key === 'c') onChoose('copy', remember);
+      else if (key === 'm') onChoose('move', remember);
+      else [...(ref.current?.querySelectorAll<HTMLButtonElement>('.choice__opt') ?? [])][e.key === 'ArrowLeft' ? 0 : 1]?.focus();
+    };
+    const onDown = (e: Event) => {
+      if (!ref.current?.contains(e.target as Node)) latest.current.onCancel();
+    };
+    const onResize = () => latest.current.onCancel();
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
+  return (
+    <div ref={ref} className="choice" role="dialog" aria-label={heading} data-no-lasso style={{ left: pos.x, top: pos.y }}>
+      <p className="choice__heading">{heading}</p>
+      <div className="choice__opts">
+        <button className="choice__opt" onClick={() => onChoose('copy', remember)}>
+          <span className="choice__top">
+            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+              <rect x="6.5" y="6.5" width="9" height="9" rx="2.2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M11.5 3.5H5a2 2 0 0 0-2 2V12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <span className="choice__name">Copy</span>
+            <kbd>C</kbd>
+          </span>
+          <span className="choice__help">{keeps}</span>
+        </button>
+        <button className="choice__opt" onClick={() => onChoose('move', remember)}>
+          <span className="choice__top">
+            <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+              <path d="M8 3.5H5.5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2H8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M7.5 9h7.5M12 6l3 3-3 3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="choice__name">Move</span>
+            <kbd>M</kbd>
+          </span>
+          <span className="choice__help">{leaves}</span>
+        </button>
+      </div>
+      <label className="choice__remember">
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+        Always do this, don’t ask again
+      </label>
     </div>
   );
 }
